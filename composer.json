@@ -1,0 +1,47 @@
+{
+    "name": "spk/website",
+    "description": "SPK Website — Sistem Pendukung Keputusan berbasis PHP + MySQL",
+    "type": "project",
+    "license": "MIT",
+    "require": {
+        "php": "^8.1",
+        "ext-json": "*",
+        "ext-mbstring": "*",
+        "ext-pdo": "*",
+        "ext-pdo_mysql": "*",
+        "mpdf/mpdf": "^8.3"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Spk\\": "src/"
+        },
+        "files": [
+            "config/database.php",
+            "src/helpers/csrf.php",
+            "src/helpers/sanitize.php",
+            "src/helpers/bobot.php",
+            "src/helpers/kriteria.php",
+            "src/helpers/alternatif.php",
+            "src/middleware/auth_guard.php"
+        ]
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Spk\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit --testdox",
+        "test:unit": "phpunit --testdox --testsuite unit",
+        "test:integration": "phpunit --testdox --testsuite integration"
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

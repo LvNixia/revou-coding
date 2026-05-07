@@ -1,0 +1,25 @@
+# Composer
+/vendor/
+composer.lock
+
+# Logs
+/logs/*.log
+
+# Uploaded assets
+/assets/uploads/*
+!/assets/uploads/.gitkeep
+
+# Environment / local config overrides
+.env
+.env.local
+phpunit.xml.dist
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

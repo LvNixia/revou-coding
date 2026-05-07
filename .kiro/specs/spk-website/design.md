@@ -390,53 +390,131 @@ class HasilPerhitunganDTO {
 
 *A property is a characteristic or behavior that should hold true across all valid executions of a system — essentially, a formal statement about what the system should do. Properties serve as the bridge between human-readable specifications and machine-verifiable correctness guarantees.*
 
-### Property 1: Normalisasi Benefit menghasilkan nilai dalam rentang (0, 1]
+### Property 1: Normalisasi SAW menghasilkan nilai dalam rentang (0, 1] dengan anchor tepat 1.0
 
-*For any* array nilai alternatif bertipe Benefit dengan semua nilai positif, setiap nilai ternormalisasi yang dihasilkan oleh `SPKEngine::normalize()` harus berada dalam rentang (0, 1], dan nilai tertinggi dalam array harus menghasilkan nilai normalisasi tepat 1.0.
-
-**Validates: Requirements 4.1**
-
-### Property 2: Normalisasi Cost menghasilkan nilai dalam rentang (0, 1]
-
-*For any* array nilai alternatif bertipe Cost dengan semua nilai positif, setiap nilai ternormalisasi yang dihasilkan oleh `SPKEngine::normalize()` harus berada dalam rentang (0, 1], dan nilai terendah dalam array harus menghasilkan nilai normalisasi tepat 1.0.
+*For any* array nilai alternatif positif dan tipe kriteria (Benefit atau Cost), setiap nilai ternormalisasi yang dihasilkan oleh `SPKEngine::normalize()` harus berada dalam rentang (0, 1]. Untuk tipe Benefit, alternatif dengan nilai tertinggi harus menghasilkan normalisasi tepat 1.0. Untuk tipe Cost, alternatif dengan nilai terendah harus menghasilkan normalisasi tepat 1.0.
 
 **Validates: Requirements 4.1**
 
-### Property 3: Nilai preferensi adalah kombinasi linear bobot dan normalisasi
+### Property 2: Nilai preferensi adalah kombinasi linear bobot dan normalisasi yang tepat
 
-*For any* matriks normalisasi dan array bobot yang valid (semua bobot positif, total bobot = 1.0), nilai preferensi yang dihasilkan oleh `SPKEngine::calculatePreference()` untuk setiap alternatif harus berada dalam rentang [0, 1] dan merupakan jumlah perkalian bobot × nilai normalisasi yang tepat.
+*For any* matriks normalisasi dan array bobot yang valid (semua bobot positif, total bobot = 1.0), nilai preferensi yang dihasilkan oleh `SPKEngine::calculatePreference()` untuk setiap alternatif harus berada dalam rentang [0, 1] dan sama persis dengan jumlah perkalian bobot × nilai normalisasi untuk semua kriteria.
 
 **Validates: Requirements 4.2**
 
-### Property 4: Ranking adalah permutasi lengkap dan terurut menurun
+### Property 3: Ranking adalah permutasi lengkap dan terurut menurun
 
 *For any* array nilai preferensi dengan n alternatif, hasil `SPKEngine::rank()` harus menghasilkan tepat n elemen, setiap alternatif muncul tepat satu kali, posisi ranking adalah bilangan bulat dari 1 hingga n tanpa duplikat, dan nilai preferensi pada posisi rank ke-k selalu ≥ nilai preferensi pada posisi rank ke-(k+1).
 
 **Validates: Requirements 4.3**
 
-### Property 5: Round-trip normalisasi — idempotent pada data yang sama
+### Property 4: CRUD round-trip — data yang disimpan dapat dibaca kembali dengan benar
 
-*For any* array nilai alternatif dan tipe kriteria yang sama, memanggil `SPKEngine::normalize()` dua kali dengan input yang identik harus menghasilkan output yang identik (determinisme).
+*For any* data kriteria atau alternatif yang valid (nama unik, bobot dalam rentang, tipe valid, nilai numerik), setelah operasi POST (tambah) atau PUT (update) ke API, operasi GET berikutnya harus mengembalikan data yang identik dengan yang dikirim, termasuk seluruh nilai kriteria untuk alternatif.
 
-**Validates: Requirements 4.1**
+**Validates: Requirements 2.2, 2.3, 3.2, 3.3**
 
-### Property 6: Validasi input — nilai non-numerik ditolak
+### Property 5: Cascade delete menghapus seluruh data terkait
 
-*For any* string yang bukan representasi angka valid (termasuk string kosong, string whitespace, karakter non-numerik), fungsi `sanitizeNumeric()` harus mengembalikan `false` dan tidak menyimpan data ke database.
+*For any* kriteria yang memiliki nilai alternatif terkait, atau alternatif yang memiliki nilai kriteria terkait, setelah operasi DELETE, tidak boleh ada satu pun baris di tabel `nilai_alternatif` yang masih mereferensikan entitas yang dihapus.
+
+**Validates: Requirements 2.4, 3.4**
+
+### Property 6: Nama kriteria dan alternatif bersifat unik di seluruh database
+
+*For any* nama kriteria atau alternatif yang sudah ada di database, setiap upaya untuk menambah atau memperbarui entitas lain dengan nama yang sama harus gagal dengan pesan error yang sesuai, dan data yang sudah ada tidak boleh berubah.
+
+**Validates: Requirements 2.7, 3.7**
+
+### Property 7: Total bobot tidak sama dengan 1.00 selalu memblokir perhitungan
+
+*For any* konfigurasi kriteria di mana jumlah seluruh bobot tidak sama dengan 1.00 (dengan toleransi floating-point ±0.001), permintaan perhitungan SAW harus ditolak dengan pesan "Total bobot kriteria harus sama dengan 1.00" dan tidak ada data hasil yang tersimpan ke database.
+
+**Validates: Requirements 2.5**
+
+### Property 8: Input non-numerik pada nilai kriteria selalu ditolak
+
+*For any* string yang bukan representasi angka valid (termasuk string kosong, string whitespace saja, karakter alfanumerik campuran, karakter khusus), fungsi `sanitizeNumeric()` harus mengembalikan `false`, dan API harus mengembalikan HTTP 400 tanpa menyimpan data apapun ke database.
 
 **Validates: Requirements 3.5, 7.3**
 
-### Property 7: CSRF token — token yang tidak valid selalu ditolak
+### Property 9: Hasil perhitungan tersimpan lengkap ke database dengan timestamp
 
-*For any* request POST/PUT/DELETE ke API endpoint, jika token CSRF yang dikirim tidak cocok dengan token yang tersimpan di sesi, maka API harus mengembalikan HTTP 403 dan tidak memproses operasi tulis apapun.
+*For any* eksekusi perhitungan SAW yang berhasil, database harus menyimpan satu baris di `riwayat_perhitungan` dengan timestamp yang akurat, satu baris di `hasil_perhitungan` per alternatif dengan nilai preferensi dan ranking yang benar, dan satu baris di `nilai_normalisasi` per kombinasi (alternatif, kriteria).
+
+**Validates: Requirements 4.4**
+
+### Property 10: Tampilan hasil mencakup semua alternatif dan semua kriteria
+
+*For any* hasil perhitungan dengan n alternatif dan m kriteria, tabel ranking yang dirender harus memuat tepat n baris (masing-masing dengan nomor urut, nama, nilai preferensi, dan posisi ranking), dan tabel matriks normalisasi harus memuat tepat n × m sel nilai.
+
+**Validates: Requirements 5.1, 5.2**
+
+### Property 11: Alternatif dengan nilai preferensi tertinggi selalu mendapat sorotan visual
+
+*For any* hasil perhitungan, elemen HTML yang merepresentasikan alternatif dengan `ranking = 1` harus memiliki CSS class sorotan yang berbeda dari baris lainnya, dan tidak boleh ada baris lain yang memiliki class sorotan yang sama.
+
+**Validates: Requirements 5.5**
+
+### Property 12: Riwayat perhitungan selalu ditampilkan dalam urutan timestamp terbaru
+
+*For any* kumpulan riwayat perhitungan dengan timestamp yang berbeda, API endpoint riwayat harus mengembalikan data dalam urutan menurun berdasarkan `dihitung_pada`, sehingga entri terbaru selalu berada di posisi pertama.
+
+**Validates: Requirements 5.6**
+
+### Property 13: Data ringkasan dashboard selalu mencerminkan kondisi database aktual
+
+*For any* jumlah kriteria dan alternatif yang tersimpan di database, API dashboard harus mengembalikan jumlah yang tepat sama dengan hasil `COUNT(*)` dari tabel `kriteria` dan `alternatif`.
+
+**Validates: Requirements 6.1**
+
+### Property 14: Setiap akses tanpa sesi valid selalu ditolak dengan respons yang tepat
+
+*For any* halaman PHP yang dilindungi atau API endpoint, permintaan tanpa sesi yang valid harus selalu menghasilkan redirect ke halaman login (untuk request HTML) atau HTTP 401 (untuk request API dengan header `Accept: application/json`), tanpa pernah menampilkan konten yang dilindungi.
+
+**Validates: Requirements 1.5, 7.4**
+
+### Property 15: Password selalu disimpan sebagai bcrypt hash, tidak pernah plaintext
+
+*For any* password yang diberikan saat pembuatan atau pembaruan akun pengguna, nilai yang tersimpan di kolom `password` tabel `users` harus lulus `password_verify($plaintext, $stored)` dan tidak boleh sama dengan string plaintext aslinya.
+
+**Validates: Requirements 1.6**
+
+### Property 16: Kredensial tidak valid selalu menghasilkan pesan error yang aman
+
+*For any* kombinasi username dan password yang tidak cocok dengan akun yang ada, respons API autentikasi harus selalu mengembalikan pesan "Username atau password salah" tanpa mengungkap apakah username atau password yang salah.
+
+**Validates: Requirements 1.2**
+
+### Property 17: Sanitasi XSS selalu meng-escape karakter HTML berbahaya
+
+*For any* string input yang mengandung karakter HTML khusus (`<`, `>`, `"`, `'`, `&`), fungsi `sanitizeString()` harus mengembalikan string di mana semua karakter tersebut telah dikonversi ke HTML entities yang sesuai, sehingga tidak dapat dieksekusi sebagai kode HTML/JavaScript.
+
+**Validates: Requirements 7.2**
+
+### Property 18: Token CSRF yang tidak valid selalu memblokir operasi tulis
+
+*For any* request POST, PUT, atau DELETE ke API endpoint, jika token CSRF yang dikirim tidak ada, kosong, atau tidak cocok dengan token yang tersimpan di sesi aktif, maka API harus mengembalikan HTTP 403 dan tidak melakukan perubahan apapun pada database.
 
 **Validates: Requirements 7.5**
 
-### Property 8: Nama kriteria dan alternatif bersifat unik
+### Property 19: Payload melebihi 1MB selalu ditolak
 
-*For any* operasi tambah atau update kriteria/alternatif, jika nama yang diberikan sudah ada di database (case-insensitive), maka operasi harus gagal dengan pesan error yang sesuai dan data yang sudah ada tidak boleh berubah.
+*For any* request ke API endpoint dengan ukuran body melebihi 1MB (1.048.576 byte), server harus mengembalikan HTTP 413 dan tidak memproses atau menyimpan data apapun.
 
-**Validates: Requirements 2.7, 3.7**
+**Validates: Requirements 7.6**
+
+### Property 20: Pengaturan sistem round-trip — nilai yang disimpan dapat dibaca kembali
+
+*For any* nilai `nama_sistem` dan `nama_organisasi` yang valid, setelah operasi POST ke API pengaturan, operasi GET berikutnya harus mengembalikan nilai yang identik, dan header halaman manapun yang dimuat setelahnya harus menampilkan nilai yang diperbarui.
+
+**Validates: Requirements 8.2**
+
+### Property 21: Upload logo dengan format atau ukuran tidak valid selalu ditolak
+
+*For any* file yang diunggah sebagai logo dengan ekstensi atau MIME type selain PNG, JPG/JPEG, atau SVG, atau dengan ukuran melebihi 2MB, API pengaturan harus mengembalikan HTTP 400 dengan pesan error yang sesuai dan tidak menyimpan file tersebut ke server.
+
+**Validates: Requirements 8.4, 8.5**
 
 ---
 
@@ -595,49 +673,134 @@ Setiap property test mereferensikan properti dari dokumen desain ini.
 
 ```php
 /**
- * Feature: spk-website, Property 1: Normalisasi Benefit dalam rentang (0, 1]
- * Minimum 100 iterasi dengan nilai acak positif
+ * Feature: spk-website, Property 1: Normalisasi SAW dalam rentang (0, 1] dengan anchor 1.0
+ * Minimum 100 iterasi dengan nilai acak positif untuk Benefit dan Cost
  */
-public function testNormalizeBenefitRange(): void {
+public function testNormalizeRangeAndAnchor(): void {
     // Generate array nilai positif acak (min 2 elemen)
-    // Assert: semua nilai ternormalisasi dalam (0, 1]
-    // Assert: max(normalized) === 1.0
+    // Assert Benefit: semua dalam (0, 1], max = 1.0
+    // Assert Cost: semua dalam (0, 1], min-value entry = 1.0
 }
 
 /**
- * Feature: spk-website, Property 2: Normalisasi Cost dalam rentang (0, 1]
+ * Feature: spk-website, Property 2: Nilai preferensi adalah kombinasi linear yang tepat
+ * Minimum 100 iterasi dengan matriks normalisasi dan bobot acak
  */
-public function testNormalizeCostRange(): void { ... }
+public function testPreferenceIsExactWeightedSum(): void { ... }
 
 /**
- * Feature: spk-website, Property 3: Nilai preferensi dalam rentang [0, 1]
+ * Feature: spk-website, Property 3: Ranking adalah permutasi lengkap terurut menurun
+ * Minimum 100 iterasi dengan array preferensi acak
  */
-public function testPreferenceRange(): void { ... }
+public function testRankIsCompleteDescendingPermutation(): void { ... }
 
 /**
- * Feature: spk-website, Property 4: Ranking adalah permutasi lengkap terurut
+ * Feature: spk-website, Property 4: CRUD round-trip untuk kriteria dan alternatif
+ * Minimum 100 iterasi dengan data valid acak
  */
-public function testRankIsCompletePermutation(): void { ... }
+public function testCrudRoundTrip(): void { ... }
 
 /**
- * Feature: spk-website, Property 5: Normalisasi deterministik
+ * Feature: spk-website, Property 5: Cascade delete menghapus semua data terkait
+ * Minimum 100 iterasi dengan jumlah nilai terkait acak
  */
-public function testNormalizeDeterministic(): void { ... }
+public function testCascadeDeleteRemovesAllRelated(): void { ... }
 
 /**
- * Feature: spk-website, Property 6: Input non-numerik selalu ditolak
+ * Feature: spk-website, Property 6: Nama duplikat selalu ditolak
+ * Minimum 100 iterasi dengan nama acak
+ */
+public function testDuplicateNameAlwaysRejected(): void { ... }
+
+/**
+ * Feature: spk-website, Property 7: Total bobot != 1.00 selalu memblokir perhitungan
+ * Minimum 100 iterasi dengan konfigurasi bobot acak yang tidak valid
+ */
+public function testInvalidTotalWeightBlocksCalculation(): void { ... }
+
+/**
+ * Feature: spk-website, Property 8: Input non-numerik selalu ditolak
+ * Minimum 100 iterasi dengan string non-numerik acak
  */
 public function testNonNumericAlwaysRejected(): void { ... }
 
 /**
- * Feature: spk-website, Property 7: CSRF token tidak valid selalu ditolak
+ * Feature: spk-website, Property 9: Hasil perhitungan tersimpan lengkap ke database
+ * Minimum 100 iterasi dengan dataset acak
  */
-public function testInvalidCsrfAlwaysRejected(): void { ... }
+public function testCalculationResultsPersistedCompletely(): void { ... }
 
 /**
- * Feature: spk-website, Property 8: Nama duplikat selalu ditolak
+ * Feature: spk-website, Property 10: Tampilan hasil mencakup semua alternatif dan kriteria
+ * Minimum 100 iterasi dengan jumlah alternatif dan kriteria acak
  */
-public function testDuplicateNameAlwaysRejected(): void { ... }
+public function testResultDisplayCompleteness(): void { ... }
+
+/**
+ * Feature: spk-website, Property 11: Alternatif rank-1 selalu mendapat sorotan visual
+ * Minimum 100 iterasi dengan hasil perhitungan acak
+ */
+public function testTopRankedAlwaysHighlighted(): void { ... }
+
+/**
+ * Feature: spk-website, Property 12: Riwayat selalu diurutkan timestamp terbaru
+ * Minimum 100 iterasi dengan kumpulan riwayat acak
+ */
+public function testHistoryAlwaysDescendingByTimestamp(): void { ... }
+
+/**
+ * Feature: spk-website, Property 13: Dashboard counts selalu akurat
+ * Minimum 100 iterasi dengan jumlah data acak
+ */
+public function testDashboardCountsMatchDatabase(): void { ... }
+
+/**
+ * Feature: spk-website, Property 14: Akses tanpa sesi selalu ditolak
+ * Minimum 100 iterasi dengan berbagai endpoint acak
+ */
+public function testUnauthenticatedAccessAlwaysRejected(): void { ... }
+
+/**
+ * Feature: spk-website, Property 15: Password selalu disimpan sebagai bcrypt hash
+ * Minimum 100 iterasi dengan password acak
+ */
+public function testPasswordAlwaysStoredAsBcrypt(): void { ... }
+
+/**
+ * Feature: spk-website, Property 16: Kredensial tidak valid selalu menghasilkan pesan aman
+ * Minimum 100 iterasi dengan kombinasi kredensial acak yang tidak valid
+ */
+public function testInvalidCredentialsAlwaysSafeMessage(): void { ... }
+
+/**
+ * Feature: spk-website, Property 17: Sanitasi XSS selalu meng-escape karakter berbahaya
+ * Minimum 100 iterasi dengan string mengandung karakter HTML acak
+ */
+public function testXssSanitizationAlwaysEscapes(): void { ... }
+
+/**
+ * Feature: spk-website, Property 18: CSRF token tidak valid selalu memblokir operasi tulis
+ * Minimum 100 iterasi dengan token acak yang tidak valid
+ */
+public function testInvalidCsrfAlwaysBlocked(): void { ... }
+
+/**
+ * Feature: spk-website, Property 19: Payload > 1MB selalu ditolak
+ * Minimum 100 iterasi dengan payload acak di atas batas
+ */
+public function testOversizedPayloadAlwaysRejected(): void { ... }
+
+/**
+ * Feature: spk-website, Property 20: Pengaturan round-trip
+ * Minimum 100 iterasi dengan nilai pengaturan acak
+ */
+public function testSettingsRoundTrip(): void { ... }
+
+/**
+ * Feature: spk-website, Property 21: Upload logo tidak valid selalu ditolak
+ * Minimum 100 iterasi dengan file format/ukuran tidak valid acak
+ */
+public function testInvalidLogoUploadAlwaysRejected(): void { ... }
 ```
 
 ### Integration Tests

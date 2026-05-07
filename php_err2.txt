@@ -1,0 +1,1 @@
+PHP Warning:  'C:\Users\akbar ramadhan\AppData\Local\ABDownloadManager\runtime\bin\VCRUNTIME140.dll' 14.29 is not compatible with this PHP build linked with 14.44 in Unknown on line 0
